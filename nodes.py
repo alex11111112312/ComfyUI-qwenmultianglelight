@@ -1,6 +1,10 @@
 """
 Qwen Multiangle Lightning Node for ComfyUI
-Extreme Stability Version: Locks Scene, Camera, Pose, and Composition.
+Final Corrected Version: 
+1. Scene Lock prioritized in global prompt.
+2. Light Position prioritized within lighting description.
+3. Pure light source (No shadows).
+4. Full UI features and registration.
 """
 
 import numpy as np
@@ -11,14 +15,8 @@ import hashlib
 import torch
 
 _cache = {}
-_max_cache_size = 50
 
 class QwenMultiangleLightningNode:
-    """
-    Lighting Control Node - Extreme Stability Edition
-    Strictly maintains scene and character while only adjusting the lighting profile.
-    """
-
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -59,7 +57,7 @@ class QwenMultiangleLightningNode:
             else:
                 img_np = image.numpy()[0] if hasattr(image, 'numpy') and len(image.shape) == 4 else image
             return hashlib.md5(img_np.tobytes()).hexdigest()
-        except:
+        except Exception:
             return str(hash(str(image)))
 
     def generate_lighting_prompt(self, light_azimuth, light_elevation, light_intensity, light_color_hex, cinematic_mode=True, image=None, unique_id=None):
@@ -75,47 +73,50 @@ class QwenMultiangleLightningNode:
             cached.get('image_hash') == image_hash):
             return cached['result']
 
-        # 1. 映射光照方位描述
+        # 1. 光源方位描述
         az = light_azimuth % 360
-        if az < 22.5 or az >= 337.5: pos_desc = "light hitting from the front"
-        elif az < 67.5: pos_desc = "light hitting from the front-right side"
-        elif az < 112.5: pos_desc = "light hitting from the right (90 degrees)"
-        elif az < 157.5: pos_desc = "light hitting from the back-right"
-        elif az < 202.5: pos_desc = "backlighting, light from behind"
-        elif az < 247.5: pos_desc = "light hitting from the back-left"
-        elif az < 292.5: pos_desc = "light hitting from the left (90 degrees)"
-        else: pos_desc = "light hitting from the front-left side"
+        if az < 22.5 or az >= 337.5: pos_desc = "light source in front"
+        elif az < 67.5: pos_desc = "light source from the front-right"
+        elif az < 112.5: pos_desc = "light source from the right"
+        elif az < 157.5: pos_desc = "light source from the back-right"
+        elif az < 202.5: pos_desc = "light source from behind"
+        elif az < 247.5: pos_desc = "light source from the back-left"
+        elif az < 292.5: pos_desc = "light source from the left"
+        else: pos_desc = "light source from the front-left"
 
-        # 2. 映射光照高度（避免使用俯仰角相关词汇）
-        if light_elevation <= -60: elev_desc = "extreme low-angle light source, strong bottom-up shadow"
-        elif light_elevation < -30: elev_desc = "low-level light source, bottom-up shadow"
-        elif light_elevation < 20: elev_desc = "horizontal light source"
-        elif light_elevation < 60: elev_desc = "high-positioned light source"
-        else: elev_desc = "top-down ceiling light source"
+        # 2. 光源高度描述 (底光逻辑)
+        if light_elevation < -30:
+            elev_desc = "uplighting, light source positioned below the character, light shining upwards"
+        elif light_elevation < -10:
+            elev_desc = "low-angle light source from below, upward illumination"
+        elif light_elevation < 20:
+            elev_desc = "horizontal level light source"
+        elif light_elevation < 60:
+            elev_desc = "high-angle light source"
+        else:
+            elev_desc = "overhead top-down light source"
 
-        # 3. 强度描述
-        if light_intensity < 3.0: int_desc = "soft ambient"
-        elif light_intensity < 7.0: int_desc = "bright directional"
-        else: int_desc = "strong dramatic contrast"
-
-        # --- 核心修改：极致场景与镜头锁定 ---
-        # 加入了 SCENE LOCK 和 CONSTANT BACKGROUND 等强力提示词
-        global_constraints = (
-            "SCENE LOCK, CONSTANT BACKGROUND, FIXED SCENERY. " # 锁定场景和背景
-            "STATIC SHOT, FIXED VIEWPOINT, NO CAMERA MOVEMENT. " # 锁定镜头
-            "maintaining character consistency, "
-            "keeping the same character pose and action, "
-            "maintaining the same composition, "
-            "RELIGHTING ONLY: only the light rays and shadows change, the scene remains untouched. " # 明确重塑光影任务
-        )
+        # 3. 强度与颜色
+        if light_intensity < 3.0: int_desc = "soft"
+        elif light_intensity < 7.0: int_desc = "bright"
+        else: int_desc = "intense"
         
-        color_desc = f"colored light (hex: {light_color_hex})"
-        detail_prompt = f"{int_desc} {color_desc}, {pos_desc}, {elev_desc}"
+        color_desc = f"colored light ({light_color_hex})"
+
+        # --- 提示词重组 ---
+        # 第一层级：场景锁定 (最高优先，保持画面一致)
+        global_constraints = "SCENE LOCK, FIXED VIEWPOINT, maintaining character consistency and pose. RELIGHTING ONLY: "
+        
+        # 第二层级：光源位置 (在重塑任务中首位)
+        light_pos_priority = f"{pos_desc}, {elev_desc}"
+        
+        # 第三层级：光影属性
+        light_props = f"{int_desc} {color_desc}"
         
         if cinematic_mode:
-            prompt = f"{global_constraints}professional cinematic relighting, {detail_prompt}, raytraced shadows, realistic global illumination"
+            prompt = f"{global_constraints}{light_pos_priority}, {light_props}, cinematic relighting"
         else:
-            prompt = f"{global_constraints}{detail_prompt}"
+            prompt = f"{global_constraints}{light_pos_priority}, {light_props}"
 
         # 预览图处理
         image_base64 = ""
@@ -127,23 +128,22 @@ class QwenMultiangleLightningNode:
                 buffer = io.BytesIO()
                 pil_image.save(buffer, format="PNG")
                 image_base64 = "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode("utf-8")
-            except: pass
+            except Exception:
+                pass
 
         result = {"ui": {"image_base64": [image_base64]}, "result": (prompt,)}
-        
         _cache[cache_key] = {
             'azimuth': light_azimuth, 'elevation': light_elevation, 
             'intensity': light_intensity, 'color': light_color_hex,
             'cinematic': cinematic_mode, 'image_hash': image_hash, 
             'result': result
         }
-        
         return result
 
 NODE_CLASS_MAPPINGS = {
-    "QwenMultiangleLightningNode": QwenMultiangleLightningNode,
+    "QwenMultiangleLightningNode": QwenMultiangleLightningNode
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "QwenMultiangleLightningNode": "Qwen Multiangle Lightning",
+    "QwenMultiangleLightningNode": "Qwen Multiangle Lightning"
 }
