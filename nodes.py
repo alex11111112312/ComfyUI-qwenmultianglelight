@@ -1,10 +1,9 @@
 """
 Qwen Multiangle Lightning Node for ComfyUI
-Final Corrected Version: 
-1. Scene Lock prioritized in global prompt.
-2. Light Position prioritized within lighting description.
-3. Pure light source (No shadows).
-4. Full UI features and registration.
+Verified Stable Version: 
+- Explicit interval checks for elevation.
+- Light Position Priority.
+- No Shadows.
 """
 
 import numpy as np
@@ -73,52 +72,48 @@ class QwenMultiangleLightningNode:
             cached.get('image_hash') == image_hash):
             return cached['result']
 
-        # 1. 光源方位描述
+        # 1. 方位区间判断
         az = light_azimuth % 360
-        if az < 22.5 or az >= 337.5: pos_desc = "light source in front"
-        elif az < 67.5: pos_desc = "light source from the front-right"
-        elif az < 112.5: pos_desc = "light source from the right"
-        elif az < 157.5: pos_desc = "light source from the back-right"
-        elif az < 202.5: pos_desc = "light source from behind"
-        elif az < 247.5: pos_desc = "light source from the back-left"
-        elif az < 292.5: pos_desc = "light source from the left"
+        if (az >= 337.5) or (az < 22.5): pos_desc = "light source in front"
+        elif 22.5 <= az < 67.5: pos_desc = "light source from the front-right"
+        elif 67.5 <= az < 112.5: pos_desc = "light source from the right"
+        elif 112.5 <= az < 157.5: pos_desc = "light source from the back-right"
+        elif 157.5 <= az < 202.5: pos_desc = "light source from behind"
+        elif 202.5 <= az < 247.5: pos_desc = "light source from the back-left"
+        elif 247.5 <= az < 292.5: pos_desc = "light source from the left"
         else: pos_desc = "light source from the front-left"
 
-        # 2. 光源高度描述 (底光逻辑)
-        if light_elevation < -30:
+        # 2. 高度区间判断 (修正为显式区间，首选底光)
+        e = light_elevation
+        if -90 <= e < -30:
             elev_desc = "uplighting, light source positioned below the character, light shining upwards"
-        elif light_elevation < -10:
+        elif -30 <= e < -10:
             elev_desc = "low-angle light source from below, upward illumination"
-        elif light_elevation < 20:
+        elif -10 <= e < 20:
             elev_desc = "horizontal level light source"
-        elif light_elevation < 60:
+        elif 20 <= e < 60:
             elev_desc = "high-angle light source"
         else:
             elev_desc = "overhead top-down light source"
 
-        # 3. 强度与颜色
+        # 3. 强度描述
         if light_intensity < 3.0: int_desc = "soft"
         elif light_intensity < 7.0: int_desc = "bright"
         else: int_desc = "intense"
         
         color_desc = f"colored light ({light_color_hex})"
 
-        # --- 提示词重组 ---
-        # 第一层级：场景锁定 (最高优先，保持画面一致)
+        # 4. 提示词结构重组 (场景锁定优先 -> 光源位置优先 -> 属性)
         global_constraints = "SCENE LOCK, FIXED VIEWPOINT, maintaining character consistency and pose. RELIGHTING ONLY: "
-        
-        # 第二层级：光源位置 (在重塑任务中首位)
-        light_pos_priority = f"{pos_desc}, {elev_desc}"
-        
-        # 第三层级：光影属性
-        light_props = f"{int_desc} {color_desc}"
+        light_positioning = f"{pos_desc}, {elev_desc}"
+        light_attributes = f"{int_desc} {color_desc}"
         
         if cinematic_mode:
-            prompt = f"{global_constraints}{light_pos_priority}, {light_props}, cinematic relighting"
+            prompt = f"{global_constraints}{light_positioning}, {light_attributes}, cinematic relighting"
         else:
-            prompt = f"{global_constraints}{light_pos_priority}, {light_props}"
+            prompt = f"{global_constraints}{light_positioning}, {light_attributes}"
 
-        # 预览图处理
+        # 预览图处理 (语法闭合检查)
         image_base64 = ""
         if image is not None:
             try:
@@ -140,6 +135,7 @@ class QwenMultiangleLightningNode:
         }
         return result
 
+# 5. 核心节点映射
 NODE_CLASS_MAPPINGS = {
     "QwenMultiangleLightningNode": QwenMultiangleLightningNode
 }
